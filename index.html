@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Học Tiếng Trung — Flashcard & Trò Chơi</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { 50:'#f0f7f0', 100:'#dcebdc', 200:'#b9d7ba', 500:'#297a2e', 600:'#226626', 700:'#1c521f' },
+        accent: { 400:'#f59e0b', 500:'#d97706', 600:'#b45309' }
+      },
+      fontFamily: { display: ['Fredoka','"Noto Sans SC"','sans-serif'] }
+    }
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lucide@1/dist/umd/lucide.min.js"></script>
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  body { font-family: 'Fredoka','Noto Sans SC',sans-serif; background:#faf9f4; }
+  button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .hanzi { font-family:'Noto Sans SC',sans-serif; font-weight:700; letter-spacing:.02em; }
+
+  /* Flip card */
+  .flip-scene { perspective: 1400px; }
+  .flip-inner { position:relative; width:100%; height:100%; transform-style:preserve-3d; transition:transform .55s cubic-bezier(.4,.2,.2,1); }
+  .flipped .flip-inner { transform: rotateY(180deg); }
+  .flip-face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:1.25rem; }
+  .flip-back { transform: rotateY(180deg); }
+
+  /* Animations */
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+  .shake { animation: shake .45s ease; }
+  @keyframes popIn { 0%{transform:scale(.85);opacity:0} 100%{transform:scale(1);opacity:1} }
+  .pop-in { animation: popIn .3s ease both; }
+  @keyframes fadeUp { from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:translateY(0)} }
+  .fade-up { animation: fadeUp .35s ease both; }
+  @keyframes pulseRing { 0%{box-shadow:0 0 0 0 rgba(41,122,46,.45)} 70%{box-shadow:0 0 0 14px rgba(41,122,46,0)} 100%{box-shadow:0 0 0 0 rgba(41,122,46,0)} }
+  .pulse-ring { animation: pulseRing 1.6s infinite; }
+
+  .match-card { transition: transform .2s ease, opacity .35s ease, background-color .2s; }
+  .match-card:active { transform: scale(.96); }
+  .match-selected { outline:3px solid #297a2e; outline-offset:2px; }
+  .match-matched { opacity:0; transform:scale(.6); pointer-events:none; }
+
+  .opt-btn { transition: all .18s ease; }
+  .opt-btn:active { transform: scale(.97); }
+  .opt-correct { background:#dcfce7 !important; border-color:#16a34a !important; color:#14532d !important; }
+  .opt-wrong { background:#fee2e2 !important; border-color:#ef4444 !important; color:#7f1d1d !important; }
+
+  .progress-fill { transition: width .4s cubic-bezier(.4,0,.2,1); }
+
+  /* Scrollbar */
+  .nice-scroll::-webkit-scrollbar { width:6px; }
+  .nice-scroll::-webkit-scrollbar-thumb { background:rgba(41,122,46,.3); border-radius:3px; }
+
+  input:focus, textarea:focus { outline:none; }
+</style>
+</head>
+<body class="text-slate-900 min-h-screen">
+
+<div id="app" class="max-w-3xl mx-auto px-4 pt-5 pb-16">
+
+  <!-- ============ HOME ============ -->
+  <div id="screen-home" class="screen">
+    <header class="text-center mb-6 fade-up">
+      <div class="inline-flex items-center gap-2 bg-brand-100 text-brand-700 px-3 py-1 rounded-full text-xs font-semibold mb-3">
+        <i data-lucide="graduation-cap" class="w-4 h-4"></i>
+        <span id="word-count-badge">24 từ vựng</span>
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-bold tracking-tight">
+        Học <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-accent-500">Tiếng Trung</span>
+      </h1>
+      <p class="text-slate-500 mt-2 text-sm sm:text-base">5 chế độ luyện tập đa chiều — học nhanh, nhớ lâu</p>
+    </header>
+
+    <!-- Action bar -->
+    <div class="flex flex-wrap gap-2 justify-center mb-5">
+      <button id="btn-import" class="inline-flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm transition">
+        <i data-lucide="file-json" class="w-4 h-4"></i> Nhập JSON
+      </button>
+      <button id="btn-shuffle" class="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-brand-500 hover:text-brand-600 text-slate-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition">
+        <i data-lucide="shuffle" class="w-4 h-4"></i> Xáo trộn
+      </button>
+      <button id="btn-export" class="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-brand-500 hover:text-brand-600 text-slate-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition">
+        <i data-lucide="download" class="w-4 h-4"></i> Xuất
+      </button>
+      <button id="btn-reset" class="inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-rose-400 hover:text-rose-600 text-slate-700 font-semibold px-4 py-2.5 rounded-xl text-sm transition">
+        <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Mặc định
+      </button>
+    </div>
+
+    <!-- Mode grid -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+      <button data-mode="flashcard" class="mode-card group text-left bg-white rounded-2xl p-4 border border-slate-200 hover:border-brand-500 hover:shadow-lg hover:-translate-y-0.5 transition-all">
+        <div class="w-11 h-11 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center mb-3 group-hover:bg-brand-500 group-hover:text-white transition-colors">
+          <i data-lucide="layers" class="w-5 h-5"></i>
+        </div>
+        <div class="font-bold text-sm">Flashcard</div>
+        <div class="text-xs text-slate-500 mt-0.5">Lật thẻ học từ</div>
+      </button>
+      <button data-mode="audio" class="mode-card group text-left bg-white rounded-2xl p-4 border border-slate-200 hover:border-accent-500 hover:shadow-lg hover:-translate-y-0.5 transition-all">
+        <div class="w-11 h-11 rounded-xl bg-orange-100 text-accent-600 flex items-center justify-center mb-3 group-hover:bg-accent-500 group-hover:text-white transition-colors">
+          <i data-lucide="headphones" class="w-5 h-5"></i>
+        </div>
+        <div class="font-bold text-sm">Nghe &amp; Đoán</div>
+        <div class="text-xs text-slate-500 mt-0.5">4 lựa chọn đa dạng</div>
+      </button>
+      <button data-mode="quiz" class="mode-card group text-left bg-white rounded-2xl p-4 border border-slate-200 hover:border-sky-500 hover:shadow-lg hover:-translate-y-0.5 transition-all">
+        <div class="w-11 h-11 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center mb-3 group-hover:bg-sky-500 group-hover:text-white transition-colors">
+          <i data-lucide="eye" class="w-5 h-5"></i>
+        </div>
+        <div class="font-bold text-sm">Nhìn &amp; Chọn</div>
+        <div class="text-xs text-slate-500 mt-0.5">Trắc nghiệm phản xạ</div>
+      </button>
+      <button data-mode="match" class="mode-card group text-left bg-white rounded-2xl p-4 border border-slate-200 hover:border-fuchsia-500 hover:shadow-lg hover:-translate-y-0.5 transition-all">
+        <div class="w-11 h-11 rounded-xl bg-fuchsia-100 text-fuchsia-600 flex items-center justify-center mb-3 group-hover:bg-fuchsia-500 group-hover:text-white transition-colors">
+          <i data-lucide="puzzle" class="w-5 h-5"></i>
+        </div>
+        <div class="font-bold text-sm">Nối Cặp</div>
+        <div class="text-xs text-slate-500 mt-0.5">Ghép Hán - Pinyin - Nghĩa</div>
+      </button>
+      <button data-mode="type" class="mode-card group text-left bg-white rounded-2xl p-4 border border-slate-200 hover:border-rose-500 hover:shadow-lg hover:-translate-y-0.5 transition-all col-span-2 sm:col-span-1">
+        <div class="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:bg-rose-500 group-hover:text-white transition-colors">
+          <i data-lucide="keyboard" class="w-5 h-5"></i>
+        </div>
+        <div class="font-bold text-sm">Gõ Pinyin</div>
+        <div class="text-xs text-slate-500 mt-0.5">Thử thách gõ phím</div>
+      </button>
+    </div>
+
+    <!-- Add word -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4">
+      <div class="flex items-center gap-2 mb-3">
+        <i data-lucide="plus-circle" class="w-4 h-4 text-brand-600"></i>
+        <span class="font-semibold text-sm">Thêm từ mới</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <input id="add-hanzi" placeholder="Hán tự" class="col-span-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-brand-500 hanzi">
+        <input id="add-pinyin" placeholder="Pinyin" class="col-span-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-brand-500">
+        <input id="add-meaning" placeholder="Nghĩa tiếng Việt" class="col-span-2 sm:col-span-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-brand-500">
+        <button id="btn-add" class="col-span-2 sm:col-span-1 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl py-2.5 text-sm transition">Thêm</button>
+      </div>
+    </div>
+
+    <!-- Vocab list -->
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+        <span class="font-semibold text-sm flex items-center gap-2"><i data-lucide="book-open" class="w-4 h-4 text-brand-600"></i> Danh sách từ vựng</span>
+        <span id="list-count" class="text-xs text-slate-400 font-medium">0 từ</span>
+      </div>
+      <div id="vocab-list" class="nice-scroll max-h-80 overflow-y-auto divide-y divide-slate-50"></div>
+    </div>
+  </div>
+
+  <!-- ============ FLASHCARD ============ -->
+  <div id="screen-flashcard" class="screen hidden">
+    <div class="flex items-center justify-between mb-4">
+      <button class="back-btn inline-flex items-center gap-1 text-slate-500 hover:text-brand-600 font-semibold text-sm"><i data-lucide="arrow-left" class="w-4 h-4"></i> Về home</button>
+      <span class="text-sm font-semibold text-slate-600">Flashcard</span>
+      <span id="fc-counter" class="text-sm font-bold text-brand-600 tabular-nums">1 / 24</span>
+    </div>
+    <div class="h-2 bg-slate-200 rounded-full overflow-hidden mb-5">
+      <div id="fc-progress" class="progress-fill h-full bg-gradient-to-r from-brand-500 to-accent-500 rounded-full" style="width:4%"></div>
+    </div>
+
+    <div id="fc-card" class="flip-scene cursor-pointer select-none mb-5" style="height:300px">
+      <div class="flip-inner">
+        <div class="flip-face bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-xl">
+          <div class="text-xs uppercase tracking-widest opacity-70 mb-3">Chữ Hán</div>
+          <div id="fc-hanzi" class="hanzi text-7xl sm:text-8xl mb-4">学习</div>
+          <button id="fc-speak" class="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur px-4 py-2 rounded-full text-sm font-medium transition">
+            <i data-lucide="volume-2" class="w-4 h-4"></i> Nghe phát âm
+          </button>
+          <div class="text-xs opacity-60 mt-4">Nhấn vào thẻ để lật</div>
+        </div>
+        <div class="flip-face flip-back bg-white border-2 border-brand-200 shadow-xl">
+          <div class="text-xs uppercase tracking-widest text-slate-400 mb-2">Pinyin</div>
+          <div id="fc-pinyin" class="text-2xl sm:text-3xl font-semibold text-accent-600 mb-4">xuéxí</div>
+          <div class="text-xs uppercase tracking-widest text-slate-400 mb-2">Nghĩa</div>
+          <div id="fc-meaning" class="text-xl sm:text-2xl font-bold text-slate-800">Học tập</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-center gap-3">
+      <button id="fc-prev" class="inline-flex items-center gap-1 bg-white border border-slate-200 hover:border-brand-500 text-slate-700 font-semibold px-5 py-3 rounded-xl transition"><i data-lucide="chevron-left" class="w-5 h-5"></i> Trước</button>
+      <button id="fc-flip" class="inline-flex items-center gap-1 bg-brand-500 hover:bg-brand-600 text-white font-semibold px-6 py-3 rounded-xl shadow transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Lật</button>
+      <button id="fc-next" class="inline-flex items-center gap-1 bg-white border border-slate-200 hover:border-brand-500 text-slate-700 font-semibold px-5 py-3 rounded-xl transition">Sau <i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+    </div>
+  </div>
+
+  <!-- ============ AUDIO QUIZ ============ -->
+  <div id="screen-audio" class="screen hidden">
+    <div class="flex items-center justify-between mb-3">
+      <button class="back-btn inline-flex items-center gap-1 text-slate-500 hover:text-brand-600 font-semibold text-sm"><i data-lucide="arrow-left" class="w-4 h-4"></i> Thoát</button>
+      <span class="text-sm font-semibold text-slate-600">Nghe &amp; Đoán</span>
+      <span id="audio-counter" class="text-sm font-bold text-brand-600 tabular-nums">1 / 24</span>
+    </div>
+    <div class="flex items-center gap-3 mb-4 text-sm">
+      <div class="flex items-center gap-1 text-accent-600 font-bold"><i data-lucide="star" class="w-4 h-4"></i><span id="audio-score">0</span></div>
+      <div class="flex items-center gap-1 text-rose-500 font-bold"><i data-lucide="flame" class="w-4 h-4"></i><span id="audio-streak">0</span></div>
+      <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+        <div id="audio-progress" class="progress-fill h-full bg-gradient-to-r from-brand-500 to-accent-500" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-8 mb-5 text-center shadow-sm">
+      <div class="text-xs uppercase tracking-widest text-slate-400 mb-4">Nghe và chọn đáp án đúng</div>
+      <button id="audio-play" class="pulse-ring inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow-lg hover:scale-105 transition-transform mx-auto">
+        <i data-lucide="volume-2" class="w-9 h-9"></i>
+      </button>
+      <div class="text-xs text-slate-400 mt-4">Nhấn để nghe lại</div>
+    </div>
+    <div id="audio-opts" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+  </div>
+
+  <!-- ============ MULTI-DIRECTION QUIZ ============ -->
+  <div id="screen-quiz" class="screen hidden">
+    <div class="flex items-center justify-between mb-3">
+      <button class="back-btn inline-flex items-center gap-1 text-slate-500 hover:text-brand-600 font-semibold text-sm"><i data-lucide="arrow-left" class="w-4 h-4"></i> Thoát</button>
+      <span class="text-sm font-semibold text-slate-600">Nhìn &amp; Chọn</span>
+      <span id="quiz-counter" class="text-sm font-bold text-brand-600 tabular-nums">1 / 24</span>
+    </div>
+    <div class="flex items-center gap-3 mb-4 text-sm">
+      <div class="flex items-center gap-1 text-accent-600 font-bold"><i data-lucide="star" class="w-4 h-4"></i><span id="quiz-score">0</span></div>
+      <div class="flex items-center gap-1 text-rose-500 font-bold"><i data-lucide="flame" class="w-4 h-4"></i><span id="quiz-streak">0</span></div>
+      <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+        <div id="quiz-progress" class="progress-fill h-full bg-gradient-to-r from-brand-500 to-sky-500" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-8 mb-5 text-center shadow-sm">
+      <div id="quiz-prompt-label" class="text-xs uppercase tracking-widest text-slate-400 mb-4">Chọn nghĩa đúng của</div>
+      <div id="quiz-prompt" class="hanzi text-5xl sm:text-6xl font-bold text-slate-800 break-words">学习</div>
+      <button id="quiz-speak" class="mt-4 inline-flex items-center gap-1.5 text-brand-600 hover:text-brand-700 text-sm font-medium"><i data-lucide="volume-2" class="w-4 h-4"></i> Nghe</button>
+    </div>
+    <div id="quiz-opts" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+  </div>
+
+  <!-- ============ MATCHING PAIRS ============ -->
+  <div id="screen-match" class="screen hidden">
+    <div class="flex items-center justify-between mb-3">
+      <button class="back-btn inline-flex items-center gap-1 text-slate-500 hover:text-brand-600 font-semibold text-sm"><i data-lucide="arrow-left" class="w-4 h-4"></i> Thoát</button>
+      <span class="text-sm font-semibold text-slate-600">Nối Cặp</span>
+      <span id="match-timer" class="text-sm font-bold text-slate-600 tabular-nums">00:00</span>
+    </div>
+    <div class="flex items-center gap-3 mb-4 text-sm">
+      <div class="flex items-center gap-1 text-fuchsia-600 font-bold"><i data-lucide="mouse-pointer-click" class="w-4 h-4"></i> Lượt: <span id="match-moves">0</span></div>
+      <div class="flex items-center gap-1 text-brand-600 font-bold"><i data-lucide="check-circle-2" class="w-4 h-4"></i> Đã ghép: <span id="match-matched">0</span>/<span id="match-total">0</span></div>
+      <div class="flex-1"></div>
+      <button id="match-restart" class="text-xs text-slate-500 hover:text-brand-600 font-semibold inline-flex items-center gap-1"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Chơi lại</button>
+    </div>
+    <p class="text-xs text-slate-500 mb-3 text-center">Chọn 3 thẻ cùng một từ (Hán tự + Pinyin + Nghĩa) để ghép nối</p>
+    <div id="match-grid" class="grid grid-cols-3 sm:grid-cols-6 gap-2"></div>
+  </div>
+
+  <!-- ============ TYPE TEST ============ -->
+  <div id="screen-type" class="screen hidden">
+    <div class="flex items-center justify-between mb-3">
+      <button class="back-btn inline-flex items-center gap-1 text-slate-500 hover:text-brand-600 font-semibold text-sm"><i data-lucide="arrow-left" class="w-4 h-4"></i> Thoát</button>
+      <span class="text-sm font-semibold text-slate-600">Gõ Pinyin</span>
+      <span id="type-counter" class="text-sm font-bold text-brand-600 tabular-nums">1 / 24</span>
+    </div>
+    <div class="flex items-center gap-3 mb-4 text-sm">
+      <div class="flex items-center gap-1 text-accent-600 font-bold"><i data-lucide="star" class="w-4 h-4"></i><span id="type-score">0</span></div>
+      <div class="flex items-center gap-1 text-rose-500 font-bold"><i data-lucide="flame" class="w-4 h-4"></i><span id="type-streak">0</span></div>
+      <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+        <div id="type-progress" class="progress-fill h-full bg-gradient-to-r from-rose-500 to-accent-500" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-4 text-center shadow-sm">
+      <div class="text-xs uppercase tracking-widest text-slate-400 mb-3">Gõ pinyin của từ có nghĩa</div>
+      <div id="type-meaning" class="text-2xl sm:text-3xl font-bold text-slate-800 mb-4">Học tập</div>
+      <button id="type-speak" class="inline-flex items-center gap-1.5 bg-brand-100 hover:bg-brand-200 text-brand-700 px-4 py-2 rounded-full text-sm font-semibold transition mx-auto">
+        <i data-lucide="volume-2" class="w-4 h-4"></i> Nghe phát âm
+      </button>
+    </div>
+
+    <div class="flex gap-2 mb-3">
+      <input id="type-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Nhập pinyin (vd: xuexi)" class="flex-1 border-2 border-slate-200 rounded-xl px-4 py-3.5 text-lg focus:border-brand-500 transition">
+      <button id="type-submit" class="bg-brand-500 hover:bg-brand-600 text-white font-bold px-6 rounded-xl transition">Kiểm tra</button>
+    </div>
+    <div id="type-feedback" class="hidden rounded-xl p-4 text-center font-semibold"></div>
+    <button id="type-next" class="hidden w-full bg-accent-500 hover:bg-accent-600 text-white font-bold py-3.5 rounded-xl transition mt-3">Tiếp theo →</button>
+  </div>
+
+</div>
+
+<!-- ============ RESULT OVERLAY ============ -->
+<div id="result-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+  <div class="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center pop-in shadow-2xl">
+    <div id="result-icon" class="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-brand-500 to-accent-500 text-white flex items-center justify-center mb-4">
+      <i data-lucide="trophy" class="w-8 h-8"></i>
+    </div>
+    <h2 id="result-title" class="text-2xl font-bold mb-1">Hoàn thành!</h2>
+    <p id="result-subtitle" class="text-sm text-slate-500 mb-5">Bạn đã kết thúc lượt học</p>
+    <div id="result-stats" class="grid grid-cols-3 gap-2 mb-6"></div>
+    <div class="flex gap-2">
+      <button id="result-home" class="flex-1 bg-white border border-slate-200 hover:border-brand-500 text-slate-700 font-semibold py-3 rounded-xl transition">Về home</button>
+      <button id="result-again" class="flex-1 bg-brand-500 hover:bg-brand-600 text-white font-bold py-3 rounded-xl transition">Chơi lại</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ IMPORT MODAL ============ -->
+<div id="import-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+  <div class="bg-white rounded-3xl p-6 w-full max-w-lg pop-in shadow-2xl max-h-[90vh] flex flex-col">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xl font-bold flex items-center gap-2"><i data-lucide="file-json" class="w-5 h-5 text-brand-600"></i> Nhập danh sách từ JSON</h3>
+      <button id="import-close" class="text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <p class="text-xs text-slate-500 mb-3">Dán JSON để <b>thay thế hoàn toàn</b> danh sách hiện tại. Mẫu:</p>
+    <pre class="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-[11px] text-slate-600 mb-3 overflow-x-auto">[{ "hanzi": "学习", "pinyin": "xuéxí", "meaning": "Học tập" }]</pre>
+    <textarea id="import-textarea" rows="8" placeholder='[{ "hanzi": "你好", "pinyin": "nǐhǎo", "meaning": "Xin chào" }, ...]' class="flex-1 min-h-[140px] w-full border-2 border-slate-200 rounded-xl p-3 text-sm font-mono focus:border-brand-500 nice-scroll"></textarea>
+    <div id="import-error" class="hidden text-rose-600 text-xs mt-2 font-medium"></div>
+    <div class="flex gap-2 mt-4">
+      <button id="import-sample" class="px-4 py-2.5 rounded-xl text-sm font-semibold bg-white border border-slate-200 hover:border-brand-500 text-slate-600 transition">Điền mẫu</button>
+      <div class="flex-1"></div>
+      <button id="import-cancel" class="px-5 py-2.5 rounded-xl text-sm font-semibold bg-white border border-slate-200 text-slate-600 hover:border-slate-400 transition">Hủy</button>
+      <button id="import-confirm" class="px-5 py-2.5 rounded-xl text-sm font-bold bg-brand-500 hover:bg-brand-600 text-white transition">Thay thế</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-slate-900 text-white text-sm font-medium px-5 py-3 rounded-xl shadow-xl pop-in"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= DEFAULT DATA ================= */
+var DEFAULT_VOCAB = [
+  {hanzi:'学习', pinyin:'xuéxí', meaning:'Học tập'},
+  {hanzi:'你好', pinyin:'nǐhǎo', meaning:'Xin chào'},
+  {hanzi:'谢谢', pinyin:'xièxie', meaning:'Cảm ơn'},
+  {hanzi:'再见', pinyin:'zàijiàn', meaning:'Tạm biệt'},
+  {hanzi:'老师', pinyin:'lǎoshī', meaning:'Giáo viên'},
+  {hanzi:'学生', pinyin:'xuésheng', meaning:'Học sinh'},
+  {hanzi:'朋友', pinyin:'péngyou', meaning:'Bạn bè'},
+  {hanzi:'中国', pinyin:'Zhōngguó', meaning:'Trung Quốc'},
+  {hanzi:'美国', pinyin:'Měiguó', meaning:'Hoa Kỳ'},
+  {hanzi:'人', pinyin:'rén', meaning:'Người'},
+  {hanzi:'水', pinyin:'shuǐ', meaning:'Nước'},
+  {hanzi:'饭', pinyin:'fàn', meaning:'Cơm / bữa ăn'},
+  {hanzi:'吃', pinyin:'chī', meaning:'Ăn'},
+  {hanzi:'喝', pinyin:'hē', meaning:'Uống'},
+  {hanzi:'书', pinyin:'shū', meaning:'Sách'},
+  {hanzi:'笔', pinyin:'bǐ', meaning:'Bút'},
+  {hanzi:'电脑', pinyin:'diànnǎo', meaning:'Máy tính'},
+  {hanzi:'手机', pinyin:'shǒujī', meaning:'Điện thoại'},
+  {hanzi:'家', pinyin:'jiā', meaning:'Nhà'},
+  {hanzi:'学校', pinyin:'xuéxiào', meaning:'Trường học'},
+  {hanzi:'工作', pinyin:'gōngzuò', meaning:'Công việc'},
+  {hanzi:'爱', pinyin:'ài', meaning:'Yêu thương'},
+  {hanzi:'好', pinyin:'hǎo', meaning:'Tốt'},
+  {hanzi:'大', pinyin:'dà', meaning:'To lớn'}
+];
+var STORAGE_KEY = 'hoc_tieng_trung_vocab_v1';
+var vocab = [];
+
+/* ================= HELPERS ================= */
+function $(id){ return document.getElementById(id); }
+function shuffle(arr){
+  var a = arr.slice();
+  for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function el(tag, attrs, children){
+  var e = document.createElement(tag);
+  if(attrs) for(var k in attrs){
+    if(!attrs.hasOwnProperty(k)) continue;
+    if(k==='class') e.className = attrs[k];
+    else if(k==='text') e.textContent = attrs[k];
+    else if(k.indexOf('on')===0) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  if(children){
+    (Array.isArray(children)?children:[children]).forEach(function(c){
+      if(c==null) return;
+      if(typeof c==='string') e.appendChild(document.createTextNode(c));
+      else e.appendChild(c);
+    });
+  }
+  return e;
+}
+function refreshIcons(){ if(window.lucide && lucide.createIcons) lucide.createIcons(); }
+var toastTimer = null;
+function toast(msg){
+  var t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.add('hidden'); }, 2400);
+}
+
+/* ================= STORAGE ================= */
+function loadVocab(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      var parsed = JSON.parse(raw);
+      if(Array.isArray(parsed) && parsed.length){
+        vocab = parsed.filter(function(w){ return w && typeof w.hanzi==='string' && w.hanzi.trim(); })
+          .map(function(w){ return {hanzi:String(w.hanzi).trim(), pinyin:String(w.pinyin||'').trim(), meaning:String(w.meaning||'').trim()}; });
+        if(vocab.length) return;
+      }
+    }
+  }catch(e){}
+  vocab = DEFAULT_VOCAB.slice();
+  saveVocab();
+}
+function saveVocab(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(vocab)); }catch(e){}
+}
+
+/* ================= TTS ================= */
+var ttsUnlocked = false;
+var zhVoice = null;
+var voicesLoaded = false;
+var speakToken = 0;
+
+function pickZhVoice(vs){
+  var best = null, bestScore = 0;
+  vs.forEach(function(v){
+    var lang = (v.lang||'').toLowerCase().replace(/_/g,'-');
+    var name = (v.name||'').toLowerCase();
+    var s = 0;
+    if(lang === 'zh-cn' || lang === 'cmn-hans-cn') s = 5;
+    else if(/^zh(-|$)/.test(lang) || /^cmn(-|$)/.test(lang)) s = 4;
+    else if(/chinese|mandarin|普通话|国语|中文|xiaoxiao|yunxi|yunjian|ting-ting|meijia|google/.test(name)) s = 3;
+    else if(/cantonese|yue|粤语/.test(lang + ' ' + name)) s = 1;
+    if(s > bestScore){ bestScore = s; best = v; }
+  });
+  return bestScore >= 3 ? best : null;
+}
+function refreshVoices(){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    var vs = speechSynthesis.getVoices() || [];
+    if(vs.length) voicesLoaded = true;
+    zhVoice = pickZhVoice(vs);
+  }catch(e){}
+}
+function unlockTTS(){
+  if(ttsUnlocked) return;
+  ttsUnlocked = true;
+  try{
+    refreshVoices();
+    if('speechSynthesis' in window) speechSynthesis.resume();
+  }catch(e){}
+}
+['pointerdown','touchend','keydown'].forEach(function(ev){
+  document.addEventListener(ev, unlockTTS, {once:true, passive:true});
+});
+if('speechSynthesis' in window){
+  try{
+    refreshVoices();
+    speechSynthesis.onvoiceschanged = refreshVoices;
+  }catch(e){}
+}
+function speak(text){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    text = String(text==null?'':text).trim();
+    if(!text) return;
+    if(!zhVoice) refreshVoices();
+    if(voicesLoaded && !zhVoice && !speak._noVoiceWarned){
+      speak._noVoiceWarned = true;
+      setTimeout(function(){ toast('Thiếu giọng tiếng Trung trên máy: hãy cài thêm giọng Chinese (Google Text-to-speech) để nghe phát âm'); }, 700);
+    }
+    speakToken++;
+    var token = speakToken;
+    speechSynthesis.cancel();
+    // Tránh lỗi Chrome/Android: cancel() rồi speak() ngay trong cùng nhịp có thể bị nuốt utterance
+    setTimeout(function(){
+      if(token !== speakToken) return;
+      try{
+        speechSynthesis.resume();
+        var u = new SpeechSynthesisUtterance(text);
+        if(zhVoice){ u.voice = zhVoice; u.lang = zhVoice.lang; }
+        else { u.lang = 'zh-CN'; }
+        u.rate = 0.85; u.pitch = 1; u.volume = 1;
+        u.onend = function(){};
+        u.onerror = function(){};
+        speechSynthesis.speak(u);
+      }catch(e2){}
+    }, 50);
+  }catch(e){}
+}
+function stopSpeak(){ speakToken++; try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(e){} }
+
+/* ================= PINYIN NORMALIZE ================= */
+function normPinyin(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\s·‧]/g,'').toLowerCase();
+}
+
+/* ================= SCREEN ROUTER ================= */
+function showScreen(name){
+  stopSpeak();
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.add('hidden'); });
+  var target = $('screen-'+name);
+  if(target){ target.classList.remove('hidden'); target.classList.add('fade-up'); }
+  window.scrollTo(0,0);
+  refreshIcons();
+}
+document.querySelectorAll('.back-btn').forEach(function(b){
+  b.addEventListener('click', function(){ showScreen('home'); renderHome(); });
+});
+
+/* ================= HOME RENDER ================= */
+function renderHome(){
+  $('word-count-badge').textContent = vocab.length + ' từ vựng';
+  $('list-count').textContent = vocab.length + ' từ';
+  var list = $('vocab-list');
+  list.innerHTML = '';
+  if(!vocab.length){
+    list.appendChild(el('div',{class:'p-6 text-center text-slate-400 text-sm'},'Danh sách trống — hãy nhập JSON hoặc thêm từ mới'));
+  }
+  vocab.forEach(function(w, idx){
+    var row = el('div',{class:'flex items-center gap-2 sm:gap-3 px-4 py-2.5 hover:bg-brand-50/50 transition'});
+    var spk = el('button',{class:'w-8 h-8 shrink-0 rounded-lg bg-brand-100 text-brand-600 hover:bg-brand-500 hover:text-white flex items-center justify-center transition', 'aria-label':'Phát âm'});
+    spk.innerHTML = '<i data-lucide="volume-2" class="w-4 h-4"></i>';
+    spk.addEventListener('click', function(e){ e.stopPropagation(); speak(w.hanzi); });
+    row.appendChild(spk);
+    row.appendChild(el('span',{class:'hanzi text-lg sm:text-xl font-bold text-slate-800 shrink-0 w-16 sm:w-20'}, w.hanzi));
+    row.appendChild(el('span',{class:'text-sm text-accent-600 font-medium shrink-0 w-24 sm:w-28 truncate'}, w.pinyin));
+    row.appendChild(el('span',{class:'text-sm text-slate-600 flex-1 truncate'}, w.meaning));
+    var del = el('button',{class:'w-8 h-8 shrink-0 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center transition','aria-label':'Xóa'});
+    del.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
+    del.addEventListener('click', function(){ vocab.splice(idx,1); saveVocab(); renderHome(); toast('Đã xóa từ'); });
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+  refreshIcons();
+}
+
+/* ================= HOME ACTIONS ================= */
+$('btn-shuffle').addEventListener('click', function(){
+  vocab = shuffle(vocab); saveVocab(); renderHome(); toast('Đã xáo trộn danh sách');
+});
+$('btn-reset').addEventListener('click', function(){
+  if(confirm('Khôi phục danh sách mặc định? Các từ bạn thêm sẽ bị mất.')){
+    vocab = DEFAULT_VOCAB.slice(); saveVocab(); renderHome(); toast('Đã khôi phục mặc định');
+  }
+});
+$('btn-export').addEventListener('click', function(){
+  var blob = new Blob([JSON.stringify(vocab, null, 2)], {type:'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = el('a',{href:url, download:'vocab-tieng-trung.json'});
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  toast('Đã xuất file JSON');
+});
+$('btn-add').addEventListener('click', function(){
+  var h = $('add-hanzi').value.trim(), p = $('add-pinyin').value.trim(), m = $('add-meaning').value.trim();
+  if(!h){ toast('Nhập Hán tự'); return; }
+  vocab.push({hanzi:h, pinyin:p, meaning:m});
+  saveVocab(); renderHome();
+  $('add-hanzi').value=''; $('add-pinyin').value=''; $('add-meaning').value='';
+  $('add-hanzi').focus();
+  toast('Đã thêm "'+h+'"');
+  speak(h);
+});
+
+/* Import modal */
+$('btn-import').addEventListener('click', function(){ $('import-error').classList.add('hidden'); $('import-modal').classList.remove('hidden'); });
+function closeImport(){ $('import-modal').classList.add('hidden'); }
+$('import-close').addEventListener('click', closeImport);
+$('import-cancel').addEventListener('click', closeImport);
+$('import-modal').addEventListener('click', function(e){ if(e.target===this) closeImport(); });
+$('import-sample').addEventListener('click', function(){
+  $('import-textarea').value = JSON.stringify(DEFAULT_VOCAB.slice(0,5), null, 2);
+});
+$('import-confirm').addEventListener('click', function(){
+  var raw = $('import-textarea').value.trim();
+  var err = $('import-error');
+  if(!raw){ err.textContent='Nội dung trống.'; err.classList.remove('hidden'); return; }
+  try{
+    var parsed = JSON.parse(raw);
+    if(!Array.isArray(parsed)) throw new Error('Phải là mảng JSON');
+    var cleaned = parsed.filter(function(w){ return w && typeof w.hanzi==='string' && w.hanzi.trim(); })
+      .map(function(w){ return {hanzi:String(w.hanzi).trim(), pinyin:String(w.pinyin||'').trim(), meaning:String(w.meaning||'').trim()}; });
+    if(!cleaned.length){ err.textContent='Không tìm thấy từ hợp lệ (cần trường "hanzi").'; err.classList.remove('hidden'); return; }
+    vocab = cleaned; saveVocab(); renderHome(); closeImport();
+    $('import-textarea').value='';
+    toast('Đã nhập '+cleaned.length+' từ');
+  }catch(e){
+    err.textContent = 'Lỗi JSON: ' + e.message;
+    err.classList.remove('hidden');
+  }
+});
+
+/* Mode cards */
+document.querySelectorAll('.mode-card').forEach(function(card){
+  card.addEventListener('click', function(){
+    var mode = card.getAttribute('data-mode');
+    if(!vocab.length){ toast('Danh sách trống, hãy thêm từ trước'); return; }
+    if(mode==='flashcard') startFlashcard();
+    else if(mode==='audio'){ if(vocab.length<4){ toast('Cần ít nhất 4 từ để chơi'); return; } startAudio(); }
+    else if(mode==='quiz'){ if(vocab.length<4){ toast('Cần ít nhất 4 từ để chơi'); return; } startQuiz(); }
+    else if(mode==='match') startMatch();
+    else if(mode==='type') startType();
+  });
+});
+
+/* ================= SESSION (shared for MC & type) ================= */
+var session = null;
+var timers = [];
+function clearTimers(){ timers.forEach(function(t){ clearTimeout(t); }); timers = []; }
+function newSession(mode){
+  clearTimers();
+  return { mode:mode, questions:[], index:0, score:0, streak:0, bestStreak:0, correct:0, wrong:0, locked:false };
+}
+function updateHUD(prefix){
+  $(prefix+'-score').textContent = session.score;
+  $(prefix+'-streak').textContent = session.streak;
+  $(prefix+'-counter').textContent = (session.index+1) + ' / ' + session.questions.length;
+  $(prefix+'-progress').style.width = Math.min(100, (session.index/Math.max(1,session.questions.length))*100) + '%';
+}
+
+/* Build MC questions (audio + quiz share) */
+function buildMCQuestions(mode){
+  var fields = ['hanzi','pinyin','meaning'];
+  var order = shuffle(vocab);
+  return order.map(function(w){
+    var promptField, answerField;
+    if(mode==='audio'){
+      promptField = 'audio';
+      answerField = fields[Math.floor(Math.random()*3)];
+    } else {
+      promptField = fields[Math.floor(Math.random()*3)];
+      do { answerField = fields[Math.floor(Math.random()*3)]; } while(answerField===promptField);
+    }
+    var opts = [{value:w[answerField], correct:true}];
+    var used = {}; used[w[answerField]] = true;
+    var others = shuffle(vocab.filter(function(x){ return x!==w; }));
+    for(var i=0;i<others.length && opts.length<4;i++){
+      var v = others[i][answerField];
+      if(used[v]) continue;
+      used[v] = true;
+      opts.push({value:v, correct:false});
+    }
+    return { word:w, promptField:promptField, answerField:answerField, options:shuffle(opts) };
+  });
+}
+
+var FIELD_LABEL = {hanzi:'Chữ Hán', pinyin:'Pinyin', meaning:'Nghĩa tiếng Việt'};
+
+function renderMC(prefix){
+  var q = session.questions[session.index];
+  updateHUD(prefix);
+  var optsEl = $(prefix+'-opts');
+  optsEl.innerHTML = '';
+
+  if(prefix==='audio'){
+    // auto play once if unlocked
+    if(ttsUnlocked) timers.push(setTimeout(function(){ speak(q.word.hanzi); }, 350));
+  } else {
+    var promptEl = $('quiz-prompt');
+    promptEl.textContent = q.word[q.promptField];
+    promptEl.className = (q.promptField==='hanzi') ? 'hanzi text-5xl sm:text-6xl font-bold text-slate-800 break-words'
+                      : (q.promptField==='pinyin') ? 'text-3xl sm:text-4xl font-bold text-accent-600 break-words'
+                      : 'text-2xl sm:text-3xl font-bold text-slate-800 break-words';
+    $('quiz-prompt-label').textContent = 'Chọn ' + FIELD_LABEL[q.answerField].toLowerCase() + ' đúng của';
+    $('quiz-speak').onclick = function(){ speak(q.word.hanzi); };
+  }
+
+  q.options.forEach(function(opt, i){
+    var btn = el('button', {
+      class:'opt-btn w-full text-left bg-white border-2 border-slate-200 hover:border-brand-400 rounded-xl px-4 py-4 font-semibold text-slate-700 shadow-sm ' + (opt.value===q.word.hanzi?'hanzi text-xl':'text-base sm:text-lg'),
+      text: opt.value
+    });
+    btn.addEventListener('click', function(){ answerMC(prefix, i, btn); });
+    optsEl.appendChild(btn);
+  });
+  refreshIcons();
+}
+
+function answerMC(prefix, chosenIdx, btn){
+  if(session.locked) return;
+  session.locked = true;
+  var q = session.questions[session.index];
+  var correct = q.options[chosenIdx].correct;
+  var btns = $(prefix+'-opts').querySelectorAll('button');
+  btns.forEach(function(b, i){
+    b.disabled = true;
+    if(q.options[i].correct) b.classList.add('opt-correct');
+  });
+  if(correct){
+    session.correct++;
+    session.streak++;
+    if(session.streak > session.bestStreak) session.bestStreak = session.streak;
+    session.score += 10 + Math.min(session.streak, 10)*2;
+    speak(q.word.hanzi);
+  } else {
+    session.wrong++;
+    session.streak = 0;
+    btn.classList.add('opt-wrong');
+    btn.classList.add('shake');
+  }
+  updateHUD(prefix);
+  timers.push(setTimeout(function(){
+    session.index++;
+    session.locked = false;
+    if(session.index >= session.questions.length){
+      showResult(prefix);
+    } else {
+      renderMC(prefix);
+    }
+  }, 1100));
+}
+
+function startAudio(){ session = newSession('audio'); session.questions = buildMCQuestions('audio'); showScreen('audio'); renderMC('audio'); }
+function startQuiz(){ session = newSession('quiz'); session.questions = buildMCQuestions('quiz'); showScreen('quiz'); renderMC('quiz'); }
+$('audio-play').addEventListener('click', function(){ if(session && session.mode==='audio') speak(session.questions[session.index].word.hanzi); });
+
+/* ================= FLASHCARD ================= */
+var fcIndex = 0;
+function startFlashcard(){ fcIndex = 0; showScreen('flashcard'); renderFC(); }
+function renderFC(){
+  var w = vocab[fcIndex];
+  var card = $('fc-card');
+  card.classList.remove('flipped');
+  $('fc-hanzi').textContent = w.hanzi;
+  $('fc-pinyin').textContent = w.pinyin || '—';
+  $('fc-meaning').textContent = w.meaning || '—';
+  $('fc-counter').textContent = (fcIndex+1) + ' / ' + vocab.length;
+  $('fc-progress').style.width = ((fcIndex+1)/vocab.length*100) + '%';
+  if(ttsUnlocked) timers.push(setTimeout(function(){ speak(w.hanzi); }, 300));
+  refreshIcons();
+}
+function flipFC(){ $('fc-card').classList.toggle('flipped'); }
+$('fc-card').addEventListener('click', function(e){ if(e.target.closest('#fc-speak')) return; flipFC(); });
+$('fc-flip').addEventListener('click', function(e){ e.stopPropagation(); flipFC(); });
+$('fc-speak').addEventListener('click', function(e){ e.stopPropagation(); speak(vocab[fcIndex].hanzi); });
+$('fc-prev').addEventListener('click', function(e){ e.stopPropagation(); if(fcIndex>0){ fcIndex--; renderFC(); } });
+$('fc-next').addEventListener('click', function(e){ e.stopPropagation(); if(fcIndex<vocab.length-1){ fcIndex++; renderFC(); } else { toast('Đã hết thẻ'); } });
+document.addEventListener('keydown', function(e){
+  if($('screen-flashcard').classList.contains('hidden')) return;
+  if(e.key==='ArrowRight'){ if(fcIndex<vocab.length-1){ fcIndex++; renderFC(); } }
+  else if(e.key==='ArrowLeft'){ if(fcIndex>0){ fcIndex--; renderFC(); } }
+  else if(e.key===' '||e.key==='Enter'){ e.preventDefault(); flipFC(); }
+});
+
+/* ================= MATCHING PAIRS ================= */
+var match = null;
+var matchTimerInt = null;
+function startMatch(){
+  clearTimers(); clearInterval(matchTimerInt);
+  var n = Math.min(6, vocab.length);
+  var words = shuffle(vocab).slice(0, n);
+  var cards = [];
+  words.forEach(function(w, wi){
+    cards.push({wordId:wi, field:'hanzi', value:w.hanzi});
+    cards.push({wordId:wi, field:'pinyin', value:w.pinyin});
+    cards.push({wordId:wi, field:'meaning', value:w.meaning});
+  });
+  match = { cards: shuffle(cards), selected: [], matched:0, total: n, moves:0, locked:false, startTime: Date.now() };
+  $('match-total').textContent = n;
+  $('match-matched').textContent = 0;
+  $('match-moves').textContent = 0;
+  showScreen('match');
+  renderMatch();
+  matchTimerInt = setInterval(function(){
+    var s = Math.floor((Date.now()-match.startTime)/1000);
+    var mm = String(Math.floor(s/60)).padStart(2,'0'), ss = String(s%60).padStart(2,'0');
+    $('match-timer').textContent = mm+':'+ss;
+  }, 500);
+}
+var FIELD_STYLE = {
+  hanzi:   'bg-brand-50 border-brand-200 text-brand-700 hanzi text-lg sm:text-xl font-bold',
+  pinyin:  'bg-orange-50 border-orange-200 text-accent-600 text-sm sm:text-base font-semibold',
+  meaning: 'bg-sky-50 border-sky-200 text-sky-700 text-xs sm:text-sm font-medium'
+};
+function renderMatch(){
+  var grid = $('match-grid');
+  grid.innerHTML = '';
+  match.cards.forEach(function(c, ci){
+    var btn = el('button', {
+      class: 'match-card min-h-[64px] sm:min-h-[76px] rounded-xl border-2 px-1.5 py-2 flex items-center justify-center text-center break-words ' + FIELD_STYLE[c.field],
+      'data-ci': ci
+    });
+    btn.textContent = c.value || '—';
+    btn.addEventListener('click', function(){ pickMatch(ci, btn); });
+    grid.appendChild(btn);
+  });
+}
+function pickMatch(ci, btn){
+  if(match.locked) return;
+  if(btn.classList.contains('match-matched')) return;
+  if(match.selected.indexOf(ci) !== -1) return;
+  match.selected.push(ci);
+  btn.classList.add('match-selected');
+  if(match.selected.length < 3) return;
+  match.locked = true;
+  match.moves++;
+  $('match-moves').textContent = match.moves;
+  var ids = match.selected.map(function(i){ return match.cards[i].wordId; });
+  var allSame = ids.every(function(id){ return id === ids[0]; });
+  var selBtns = match.selected.map(function(i){ return document.querySelector('[data-ci="'+i+'"]'); });
+  if(allSame){
+    match.matched++;
+    $('match-matched').textContent = match.matched;
+    speak(match.cards[match.selected[0]].value && match.cards[match.selected[0]].field==='hanzi' ? match.cards[match.selected[0]].value : (match.cards.find(function(c){return c.wordId===ids[0]&&c.field==='hanzi';})||{}).value);
+    timers.push(setTimeout(function(){
+      selBtns.forEach(function(b){ if(b) b.classList.add('match-matched'); });
+      match.selected = []; match.locked = false;
+      if(match.matched >= match.total){
+        clearInterval(matchTimerInt);
+        timers.push(setTimeout(function(){ showMatchResult(); }, 500));
+      }
+    }, 350));
+  } else {
+    selBtns.forEach(function(b){ if(b) b.classList.add('shake'); });
+    timers.push(setTimeout(function(){
+      selBtns.forEach(function(b){ if(b){ b.classList.remove('match-selected'); b.classList.remove('shake'); } });
+      match.selected = []; match.locked = false;
+    }, 650));
+  }
+}
+$('match-restart').addEventListener('click', startMatch);
+function showMatchResult(){
+  var s = Math.floor((Date.now()-match.startTime)/1000);
+  fillResult('Nối Cặp hoàn thành!', 'Bạn đã ghép đủ '+match.total+' cặp', [
+    {label:'Lượt chơi', value: String(match.moves)},
+    {label:'Thời gian', value: Math.floor(s/60)+':'+String(s%60).padStart(2,'0')},
+    {label:'Cặp đã ghép', value: match.total}
+  ], startMatch);
+}
+
+/* ================= TYPE TEST ================= */
+function startType(){
+  session = newSession('type');
+  session.questions = shuffle(vocab).map(function(w){ return {word:w}; });
+  showScreen('type');
+  renderType();
+}
+function renderType(){
+  var q = session.questions[session.index];
+  updateHUD('type');
+  $('type-meaning').textContent = q.word.meaning || '—';
+  var input = $('type-input');
+  input.value = ''; input.disabled = false;
+  $('type-feedback').classList.add('hidden');
+  $('type-next').classList.add('hidden');
+  $('type-submit').classList.remove('hidden');
+  $('type-speak').onclick = function(){ speak(q.word.hanzi); };
+  if(ttsUnlocked) timers.push(setTimeout(function(){ speak(q.word.hanzi); }, 350));
+  setTimeout(function(){ input.focus(); }, 100);
+}
+function submitType(){
+  if(session.locked) return;
+  var q = session.questions[session.index];
+  var val = $('type-input').value;
+  var fb = $('type-feedback');
+  var correct = normPinyin(val) === normPinyin(q.word.pinyin) && normPinyin(val) !== '';
+  session.locked = true;
+  $('type-input').disabled = true;
+  $('type-submit').classList.add('hidden');
+  fb.classList.remove('hidden');
+  if(correct){
+    session.correct++; session.streak++;
+    if(session.streak>session.bestStreak) session.bestStreak=session.streak;
+    session.score += 15 + Math.min(session.streak,10)*2;
+    fb.className = 'rounded-xl p-4 text-center font-semibold bg-green-50 text-green-700 border border-green-200';
+    fb.textContent = 'Chính xác! ' + q.word.hanzi + ' = ' + q.word.pinyin;
+    speak(q.word.hanzi);
+  } else {
+    session.wrong++; session.streak = 0;
+    fb.className = 'rounded-xl p-4 text-center font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    fb.textContent = 'Sai rồi. Đáp án: ' + q.word.pinyin + ' (' + q.word.hanzi + ')';
+  }
+  updateHUD('type');
+  $('type-next').classList.remove('hidden');
+}
+$('type-submit').addEventListener('click', submitType);
+$('type-input').addEventListener('keydown', function(e){ if(e.key==='Enter'){ if(session.locked){ nextType(); } else { submitType(); } } });
+$('type-next').addEventListener('click', nextType);
+function nextType(){
+  session.index++; session.locked = false;
+  if(session.index >= session.questions.length){ showResult('type'); }
+  else renderType();
+}
+
+/* ================= RESULT OVERLAY ================= */
+var resultAgainCallback = null;
+function fillResult(title, subtitle, stats, againCb){
+  $('result-title').textContent = title;
+  $('result-subtitle').textContent = subtitle;
+  var box = $('result-stats'); box.innerHTML = '';
+  stats.forEach(function(s){
+    var cell = el('div',{class:'bg-slate-50 rounded-xl p-3'});
+    cell.appendChild(el('div',{class:'text-xl font-bold text-brand-600 tabular-nums'}, String(s.value)));
+    cell.appendChild(el('div',{class:'text-[11px] text-slate-500 font-medium mt-0.5'}, s.label));
+    box.appendChild(cell);
+  });
+  resultAgainCallback = againCb;
+  $('result-overlay').classList.remove('hidden');
+  refreshIcons();
+}
+function showResult(prefix){
+  var total = session.questions.length;
+  var pct = total ? Math.round(session.correct/total*100) : 0;
+  var modeName = {audio:'Nghe & Đoán', quiz:'Nhìn & Chọn', type:'Gõ Pinyin'}[prefix] || '';
+  var againFn = {audio:startAudio, quiz:startQuiz, type:startType}[prefix];
+  var title = pct>=80 ? 'Tuyệt vời!' : pct>=50 ? 'Khá tốt!' : 'Cố lên!';
+  fillResult(title, modeName+' — hoàn thành '+total+' câu', [
+    {label:'Đúng', value: session.correct},
+    {label:'Sai', value: session.wrong},
+    {label:'Điểm', value: session.score},
+    {label:'Tỷ lệ đúng', value: pct+'%'},
+    {label:'Streak tối đa', value: session.bestStreak},
+    {label:'Tổng câu', value: total}
+  ], againFn);
+}
+$('result-home').addEventListener('click', function(){ $('result-overlay').classList.add('hidden'); showScreen('home'); renderHome(); });
+$('result-again').addEventListener('click', function(){
+  $('result-overlay').classList.add('hidden');
+  if(resultAgainCallback) resultAgainCallback();
+});
+
+/* ================= INIT ================= */
+loadVocab();
+renderHome();
+refreshIcons();
+})();
+</script>
+</body>
+</html>
